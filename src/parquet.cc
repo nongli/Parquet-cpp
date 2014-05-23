@@ -57,7 +57,7 @@ ColumnReader::ColumnReader(const ColumnMetaData* metadata,
     num_buffered_values_(0),
     num_decoded_values_(0),
     buffered_values_offset_(0) {
-  int value_byte_size;
+  int value_byte_size = 0;
   switch (metadata->type) {
     case parquet::Type::BOOLEAN:
       value_byte_size = 1;
@@ -102,27 +102,27 @@ void ColumnReader::BatchDecode() {
   switch (metadata_->type) {
     case parquet::Type::BOOLEAN:
       num_decoded_values_ =
-          current_decoder_->GetBool(reinterpret_cast<bool*>(buf), batch_size);
+          current_decoder_->Get(reinterpret_cast<bool*>(buf), batch_size);
       break;
     case parquet::Type::INT32:
       num_decoded_values_ =
-          current_decoder_->GetInt32(reinterpret_cast<int32_t*>(buf), batch_size);
+          current_decoder_->Get(reinterpret_cast<int32_t*>(buf), batch_size);
       break;
     case parquet::Type::INT64:
       num_decoded_values_ =
-          current_decoder_->GetInt64(reinterpret_cast<int64_t*>(buf), batch_size);
+          current_decoder_->Get(reinterpret_cast<int64_t*>(buf), batch_size);
       break;
     case parquet::Type::FLOAT:
       num_decoded_values_ =
-          current_decoder_->GetFloat(reinterpret_cast<float*>(buf), batch_size);
+          current_decoder_->Get(reinterpret_cast<float*>(buf), batch_size);
       break;
     case parquet::Type::DOUBLE:
       num_decoded_values_ =
-          current_decoder_->GetDouble(reinterpret_cast<double*>(buf), batch_size);
+          current_decoder_->Get(reinterpret_cast<double*>(buf), batch_size);
       break;
     case parquet::Type::BYTE_ARRAY:
       num_decoded_values_ =
-          current_decoder_->GetByteArray(reinterpret_cast<ByteArray*>(buf), batch_size);
+          current_decoder_->Get(reinterpret_cast<ByteArray*>(buf), batch_size);
       break;
     default:
       PARQUET_NOT_YET_IMPLEMENTED("Unsupported type.");

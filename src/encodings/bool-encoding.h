@@ -28,7 +28,7 @@ class BoolDecoder : public Decoder {
     decoder_ = impala::RleDecoder(data, len, 1);
   }
 
-  virtual int GetBool(bool* buffer, int max_values) {
+  virtual int Get(bool* buffer, int max_values) {
     max_values = std::min(max_values, num_values_);
     for (int i = 0; i < max_values; ++i) {
       if (!decoder_.Get(&buffer[i])) ParquetException::EofException();
@@ -39,6 +39,34 @@ class BoolDecoder : public Decoder {
 
  private:
   impala::RleDecoder decoder_;
+};
+
+class BoolEncoder : public Encoder {
+ public:
+  BoolEncoder(int buffer_size)
+    : Encoder(parquet::Type::BOOLEAN, parquet::Encoding::PLAIN, buffer_size),
+      encoder_(buffer_, buffer_size_, 1) {
+  }
+
+  virtual const uint8_t* Encode(int* encoded_len) {
+    *encoded_len = encoder_.Flush();
+    return encoder_.buffer();
+  }
+
+  virtual void Reset() {
+    encoder_.Clear();
+    num_values_ = 0;
+  }
+
+  virtual int Add(const bool* values, int num_values) {
+    for (int i = 0; i < num_values; ++i) {
+      if (!encoder_.Put(values[i])) return i;
+    }
+    return num_values;
+  }
+
+ private:
+  impala::RleEncoder encoder_;
 };
 
 }

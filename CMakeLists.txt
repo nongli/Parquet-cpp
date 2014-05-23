@@ -18,6 +18,8 @@ cmake_minimum_required(VERSION 2.6)
 # generate CTest input files
 enable_testing()
 
+#set(CMAKE_CXX_COMPILER "clang++")
+
 # where to find cmake modules
 set(CMAKE_MODULE_PATH ${CMAKE_MODULE_PATH} "${CMAKE_SOURCE_DIR}/cmake_modules")
 
@@ -46,27 +48,30 @@ message(STATUS "Thrift compiler: ${THRIFT_COMPILER}")
 add_library(thriftstatic STATIC IMPORTED)
 set_target_properties(thriftstatic PROPERTIES IMPORTED_LOCATION ${THRIFT_STATIC_LIB})
 
-## GTest
+# GTest
 find_package(GTest REQUIRED)
 include_directories(SYSTEM ${GTEST_INCLUDE_DIR})
 add_library(gtest STATIC IMPORTED)
 set_target_properties(gtest PROPERTIES IMPORTED_LOCATION ${GTEST_LIBRARY})
 
-## LZ4
+# LZ4
 find_package(Lz4 REQUIRED)
 include_directories(SYSTEM ${LZ4_INCLUDE_DIR})
 add_library(lz4static STATIC IMPORTED)
 set_target_properties(lz4static PROPERTIES IMPORTED_LOCATION ${LZ4_STATIC_LIB})
 
-## Snappy
+# Snappy
 find_package(Snappy REQUIRED)
 include_directories(SYSTEM ${SNAPPY_INCLUDE_DIR})
 add_library(snappystatic STATIC IMPORTED)
 set_target_properties(snappystatic PROPERTIES IMPORTED_LOCATION ${SNAPPY_STATIC_LIB})
 
-
-SET(CMAKE_CXX_FLAGS "-msse4.2 -Wall -Wno-unused-value -Wno-unused-variable -Wno-sign-compare -Wno-unknown-pragmas")
-SET(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -g -ggdb")
+# Compiler flags
+set(CMAKE_CXX_FLAGS "-msse4.2 -Wall")
+set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fno-strict-aliasing")
+set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wno-sign-compare -Wno-unknown-pragmas")
+set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wno-unused-value -Wno-unused-variable")
+set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -g -ggdb")
 
 # Thrift requires these definitions for some types that we use
 add_definitions(-DHAVE_INTTYPES_H -DHAVE_NETINET_IN_H -DHAVE_NETDB_H)

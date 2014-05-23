@@ -41,8 +41,8 @@ string PrintType(const SchemaElement& e) {
     case Type::FLOAT: ss << "float"; break;
     case Type::DOUBLE: ss << "double"; break;
     case Type::BYTE_ARRAY:
-      ss << (e.__isset.converted_type && e.converted_type == ConvertedType::UTF8)
-            ? "string" : "uint8[]";
+      ss << ((e.__isset.converted_type && e.converted_type == ConvertedType::UTF8)
+            ? "string" : "uint8[]");
       break;
     default: ss << "unknown";
   }

@@ -26,4 +26,5 @@ ENDFUNCTION()
 SET(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -pthread")
 
 ADD_UNIT_TEST(bit-util-test)
+ADD_UNIT_TEST(encoding-test)
 ADD_UNIT_TEST(rle-test)

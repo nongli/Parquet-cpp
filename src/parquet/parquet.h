@@ -74,6 +74,24 @@ class ParquetException : public std::exception {
   std::string msg_;
 };
 
+class Allocator {
+ public:
+  virtual ~Allocator() {}
+  virtual uint8_t* Allocate(int num_bytes) = 0;
+  virtual void Free(uint8_t* ptr) = 0;
+};
+
+class MallocAllocator : public Allocator {
+ public:
+  virtual uint8_t* Allocate(int num_bytes) {
+    return reinterpret_cast<uint8_t*>(malloc(num_bytes));
+  }
+
+  virtual void Free(uint8_t* ptr) {
+    free(ptr);
+  }
+};
+
 // Interface for the column reader to get the bytes. The interface is a stream
 // interface, meaning the bytes in order and once a byte is read, it does not
 // need to be read again.

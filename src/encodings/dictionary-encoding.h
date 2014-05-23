@@ -33,23 +33,23 @@ class DictionaryDecoder : public Decoder {
 
       case parquet::Type::INT32:
         int32_dictionary_.resize(num_dictionary_values);
-        dictionary->GetInt32(&int32_dictionary_[0], num_dictionary_values);
+        dictionary->Get(&int32_dictionary_[0], num_dictionary_values);
         break;
       case parquet::Type::INT64:
         int64_dictionary_.resize(num_dictionary_values);
-        dictionary->GetInt64(&int64_dictionary_[0], num_dictionary_values);
+        dictionary->Get(&int64_dictionary_[0], num_dictionary_values);
         break;
       case parquet::Type::FLOAT:
         float_dictionary_.resize(num_dictionary_values);
-        dictionary->GetFloat(&float_dictionary_[0], num_dictionary_values);
+        dictionary->Get(&float_dictionary_[0], num_dictionary_values);
         break;
       case parquet::Type::DOUBLE:
         double_dictionary_.resize(num_dictionary_values);
-        dictionary->GetDouble(&double_dictionary_[0], num_dictionary_values);
+        dictionary->Get(&double_dictionary_[0], num_dictionary_values);
         break;
       case parquet::Type::BYTE_ARRAY: {
         byte_array_dictionary_.resize(num_dictionary_values);
-        dictionary->GetByteArray(&byte_array_dictionary_[0], num_dictionary_values);
+        dictionary->Get(&byte_array_dictionary_[0], num_dictionary_values);
         int total_size = 0;
         for (int i = 0; i < num_dictionary_values; ++i) {
           total_size += byte_array_dictionary_[i].len;
@@ -78,7 +78,7 @@ class DictionaryDecoder : public Decoder {
     idx_decoder_ = impala::RleDecoder(data, len, bit_width);
   }
 
-  virtual int GetInt32(int32_t* buffer, int max_values) {
+  virtual int Get(int32_t* buffer, int max_values) {
     max_values = std::min(max_values, num_values_);
     for (int i = 0; i < max_values; ++i) {
       buffer[i] = int32_dictionary_[index()];
@@ -86,7 +86,7 @@ class DictionaryDecoder : public Decoder {
     return max_values;
   }
 
-  virtual int GetInt64(int64_t* buffer, int max_values) {
+  virtual int Get(int64_t* buffer, int max_values) {
     max_values = std::min(max_values, num_values_);
     for (int i = 0; i < max_values; ++i) {
       buffer[i] = int64_dictionary_[index()];
@@ -94,7 +94,7 @@ class DictionaryDecoder : public Decoder {
     return max_values;
   }
 
-  virtual int GetFloat(float* buffer, int max_values) {
+  virtual int Get(float* buffer, int max_values) {
     max_values = std::min(max_values, num_values_);
     for (int i = 0; i < max_values; ++i) {
       buffer[i] = float_dictionary_[index()];
@@ -102,7 +102,7 @@ class DictionaryDecoder : public Decoder {
     return max_values;
   }
 
-  virtual int GetDouble(double* buffer, int max_values) {
+  virtual int Get(double* buffer, int max_values) {
     max_values = std::min(max_values, num_values_);
     for (int i = 0; i < max_values; ++i) {
       buffer[i] = double_dictionary_[index()];
@@ -110,7 +110,7 @@ class DictionaryDecoder : public Decoder {
     return max_values;
   }
 
-  virtual int GetByteArray(ByteArray* buffer, int max_values) {
+  virtual int Get(ByteArray* buffer, int max_values) {
     max_values = std::min(max_values, num_values_);
     for (int i = 0; i < max_values; ++i) {
       buffer[i] = byte_array_dictionary_[index()];

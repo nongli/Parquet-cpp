@@ -31,179 +31,13 @@ using namespace std;
  * TODO: this file needs some major cleanup.
  */
 
-class DeltaBitPackEncoder {
- public:
-  DeltaBitPackEncoder(int mini_block_size = 8) {
-    mini_block_size_ = mini_block_size;
-  }
-
-  void Add(int64_t v) {
-    values_.push_back(v);
-  }
-
-  uint8_t* Encode(int* encoded_len) {
-    uint8_t* result = new uint8_t[10 * 1024 * 1024];
-    int num_mini_blocks = BitUtil::Ceil(num_values() - 1, mini_block_size_);
-    uint8_t* mini_block_widths = NULL;
-
-    BitWriter writer(result, 10 * 1024 * 1024);
-
-    // Writer the size of each block. We only use 1 block currently.
-    writer.PutVlqInt(num_mini_blocks * mini_block_size_);
-
-    // Write the number of mini blocks.
-    writer.PutVlqInt(num_mini_blocks);
-
-    // Write the number of values.
-    writer.PutVlqInt(num_values() - 1);
-
-    // Write the first value.
-    writer.PutZigZagVlqInt(values_[0]);
-
-    // Compute the values as deltas and the min delta.
-    int64_t min_delta = numeric_limits<int64_t>::max();
-    for (int i = values_.size() - 1; i > 0; --i) {
-      values_[i] -= values_[i - 1];
-      min_delta = min(min_delta, values_[i]);
-    }
-
-    // Write out the min delta.
-    writer.PutZigZagVlqInt(min_delta);
-
-    // We need to save num_mini_blocks bytes to store the bit widths of the mini blocks.
-    mini_block_widths = writer.GetNextBytePtr(num_mini_blocks);
-
-    int idx = 1;
-    for (int i = 0; i < num_mini_blocks; ++i) {
-      int n = min(mini_block_size_, num_values() - idx);
-
-      // Compute the max delta in this mini block.
-      int64_t max_delta = numeric_limits<int64_t>::min();
-      for (int j = 0; j < n; ++j) {
-        max_delta = max(values_[idx + j], max_delta);
-      }
-
-      // The bit width for this block is the number of bits needed to store
-      // (max_delta - min_delta).
-      int bit_width = BitUtil::NumRequiredBits(max_delta - min_delta);
-      mini_block_widths[i] = bit_width;
-
-      // Encode this mini blocking using min_delta and bit_width
-      for (int j = 0; j < n; ++j) {
-        writer.PutValue(values_[idx + j] - min_delta, bit_width);
-      }
-
-      // Pad out the last block.
-      for (int j = n; j < mini_block_size_; ++j) {
-        writer.PutValue(0, bit_width);
-      }
-      idx += n;
-    }
-
-    writer.Flush();
-    *encoded_len = writer.bytes_written();
-    return result;
-  }
-
-  int num_values() const { return values_.size(); }
-
- private:
-  int mini_block_size_;
-  vector<int64_t> values_;
-};
-
-class DeltaLengthByteArrayEncoder {
- public:
-  DeltaLengthByteArrayEncoder(int mini_block_size = 8) :
-    len_encoder_(mini_block_size),
-    buffer_(new uint8_t[10 * 1024 * 1024]),
-    offset_(0),
-    plain_encoded_len_(0) {
-  }
-
-  void Add(const string& s) {
-    Add(reinterpret_cast<const uint8_t*>(s.data()), s.size());
-  }
-
-  void Add(const uint8_t* ptr, int len) {
-    plain_encoded_len_ += len + sizeof(int);
-    len_encoder_.Add(len);
-    memcpy(buffer_ + offset_, ptr, len);
-    offset_ += len;
-  }
-
-  uint8_t* Encode(int* encoded_len) {
-    uint8_t* encoded_lengths = len_encoder_.Encode(encoded_len);
-    memmove(buffer_ + *encoded_len + sizeof(int), buffer_, offset_);
-    memcpy(buffer_, encoded_len, sizeof(int));
-    memcpy(buffer_ + sizeof(int), encoded_lengths, *encoded_len);
-    *encoded_len += offset_ + sizeof(int);
-    return buffer_;
-  }
-
-  int num_values() const { return len_encoder_.num_values(); }
-  int plain_encoded_len() const { return plain_encoded_len_; }
-
- private:
-  DeltaBitPackEncoder len_encoder_;
-  uint8_t* buffer_;
-  int offset_;
-  int plain_encoded_len_;
-};
-
-class DeltaByteArrayEncoder {
- public:
-  DeltaByteArrayEncoder() : plain_encoded_len_(0) {}
-
-  void Add(const string& s) {
-    plain_encoded_len_ += s.size() + sizeof(int);
-    int min_len = min(s.size(), last_value_.size());
-    int prefix_len = 0;
-    for (int i = 0; i < min_len; ++i) {
-      if (s[i] == last_value_[i]) {
-        ++prefix_len;
-      } else {
-        break;
-      }
-    }
-    prefix_len_encoder_.Add(prefix_len);
-    suffix_encoder_.Add(reinterpret_cast<const uint8_t*>(s.data()) + prefix_len,
-        s.size() - prefix_len);
-    last_value_ = s;
-  }
-
-  uint8_t* Encode(int* encoded_len) {
-    int prefix_buffer_len;
-    uint8_t* prefix_buffer = prefix_len_encoder_.Encode(&prefix_buffer_len);
-    int suffix_buffer_len;
-    uint8_t* suffix_buffer = suffix_encoder_.Encode(&suffix_buffer_len);
-
-    uint8_t* buffer = new uint8_t[10 * 1024 * 1024];
-    memcpy(buffer, &prefix_buffer_len, sizeof(int));
-    memcpy(buffer + sizeof(int), prefix_buffer, prefix_buffer_len);
-    memcpy(buffer + sizeof(int) + prefix_buffer_len, suffix_buffer, suffix_buffer_len);
-    *encoded_len = sizeof(int) + prefix_buffer_len + suffix_buffer_len;
-    return buffer;
-  }
-
-  int num_values() const { return prefix_len_encoder_.num_values(); }
-  int plain_encoded_len() const { return plain_encoded_len_; }
-
- private:
-  DeltaBitPackEncoder prefix_len_encoder_;
-  DeltaLengthByteArrayEncoder suffix_encoder_;
-  string last_value_;
-  int plain_encoded_len_;
-};
-
-
 uint64_t TestPlainIntEncoding(const uint8_t* data, int num_values, int batch_size) {
   uint64_t result = 0;
   PlainDecoder decoder(Type::INT64);
   decoder.SetData(num_values, data, num_values * sizeof(int64_t));
   int64_t values[batch_size];
   for (int i = 0; i < num_values;) {
-    int n = decoder.GetInt64(values, batch_size);
+    int n = decoder.Get(values, batch_size);
     for (int j = 0; j < n; ++j) {
       result += values[j];
     }
@@ -223,14 +57,14 @@ uint64_t TestBinaryPackedEncoding(const char* name, const vector<int64_t>& value
     mini_block_size = 32;
   }
   DeltaBitPackDecoder decoder(Type::INT64);
-  DeltaBitPackEncoder encoder(mini_block_size);
+  DeltaBitPackEncoder encoder(Type::INT64, 1, mini_block_size);
   for (int i = 0; i < values.size(); ++i) {
-    encoder.Add(values[i]);
+    encoder.Add(&values[i], 1);
   }
 
   int raw_len = encoder.num_values() * sizeof(int);
   int len;
-  uint8_t* buffer = encoder.Encode(&len);
+  const uint8_t* buffer = encoder.Encode(&len);
 
   if (benchmark_iters == -1) {
     printf("%s\n", name);
@@ -239,7 +73,7 @@ uint64_t TestBinaryPackedEncoding(const char* name, const vector<int64_t>& value
     decoder.SetData(encoder.num_values(), buffer, len);
     for (int i = 0; i < encoder.num_values(); ++i) {
       int64_t x = 0;
-      decoder.GetInt64(&x, 1);
+      decoder.Get(&x, 1);
       if (values[i] != x) {
         cerr << "Bad: " << i << endl;
         cerr << "  " << x << " != " << values[i] << endl;
@@ -259,7 +93,7 @@ uint64_t TestBinaryPackedEncoding(const char* name, const vector<int64_t>& value
     for (int k = 0; k < benchmark_iters; ++k) {
       decoder.SetData(encoder.num_values(), buffer, len);
       for (int i = 0; i < values.size();) {
-        int n = decoder.GetInt64(buf, benchmark_batch_size);
+        int n = decoder.Get(buf, benchmark_batch_size);
         for (int j = 0; j < n; ++j) {
           result += buf[j];
         }
@@ -283,7 +117,8 @@ uint64_t TestBinaryPackedEncoding(const char* name, const vector<int64_t>& value
   printf("%s rate (batch size = %2d): %0.3fM per second.\n",\
       NAME, BATCH_SIZE, mult / elapsed);
 
-void TestPlainIntCompressed(Codec* codec, const vector<int64_t>& data, int num_iters, int batch_size) {
+void TestPlainIntCompressed(Codec* codec, const vector<int64_t>& data,
+    int num_iters, int batch_size) {
   const uint8_t* raw_data = reinterpret_cast<const uint8_t*>(&data[0]);
   int uncompressed_len = data.size() * sizeof(int64_t);
   uint8_t* decompressed_data = new uint8_t[uncompressed_len];
@@ -351,7 +186,7 @@ void TestBinaryPacking() {
 
 void TestDeltaLengthByteArray() {
   DeltaLengthByteArrayDecoder decoder;
-  DeltaLengthByteArrayEncoder encoder;
+  DeltaLengthByteArrayEncoder encoder(10 * 1024 * 1024);
 
   vector<string> values;
   values.push_back("Hello");
@@ -360,17 +195,17 @@ void TestDeltaLengthByteArray() {
   values.push_back("ABCDEF");
 
   for (int i = 0; i < values.size(); ++i) {
-    encoder.Add(values[i]);
+    encoder.AddValue(values[i]);
   }
 
   int len = 0;
-  uint8_t* buffer = encoder.Encode(&len);
+  const uint8_t* buffer = encoder.Encode(&len);
   printf("DeltaLengthByteArray\n  Raw len: %d\n  Encoded len: %d\n",
       encoder.plain_encoded_len(), len);
   decoder.SetData(encoder.num_values(), buffer, len);
   for (int i = 0; i < encoder.num_values(); ++i) {
     ByteArray v;
-    decoder.GetByteArray(&v, 1);
+    decoder.Get(&v, 1);
     string r = string((char*)v.ptr, v.len);
     if (r != values[i]) {
       cout << "Bad " << r << " != " << values[i] << endl;
@@ -380,7 +215,7 @@ void TestDeltaLengthByteArray() {
 
 void TestDeltaByteArray() {
   DeltaByteArrayDecoder decoder;
-  DeltaByteArrayEncoder encoder;
+  DeltaByteArrayEncoder encoder(10 * 1024 * 1024);
 
   vector<string> values;
 
@@ -398,17 +233,17 @@ void TestDeltaByteArray() {
   values.push_back("nacelle");
 
   for (int i = 0; i < values.size(); ++i) {
-    encoder.Add(values[i]);
+    encoder.AddValue(values[i]);
   }
 
   int len = 0;
-  uint8_t* buffer = encoder.Encode(&len);
+  const uint8_t* buffer = encoder.Encode(&len);
   printf("DeltaLengthByteArray\n  Raw len: %d\n  Encoded len: %d\n",
       encoder.plain_encoded_len(), len);
   decoder.SetData(encoder.num_values(), buffer, len);
   for (int i = 0; i < encoder.num_values(); ++i) {
     ByteArray v;
-    decoder.GetByteArray(&v, 1);
+    decoder.Get(&v, 1);
     string r = string((char*)v.ptr, v.len);
     if (r != values[i]) {
       cout << "Bad " << r << " != " << values[i] << endl;
