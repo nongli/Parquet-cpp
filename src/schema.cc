@@ -22,6 +22,10 @@ using namespace std;
 
 namespace parquet_cpp {
 
+Projection::Projection(const vector<vector<string> >& cols)
+  : cols_by_name_(cols) {
+}
+
 Schema::Element::Element(const SchemaElement& s, Element* parent) :
   parquet_schema_(s),
   parent_(parent),
@@ -30,10 +34,13 @@ Schema::Element::Element(const SchemaElement& s, Element* parent) :
   max_rep_level_(parent == NULL ? 0 : parent->max_rep_level() +
       (s.repetition_type == FieldRepetitionType::REPEATED)),
   index_in_parent_(-1),
-  full_name_(ComputeFullName()) {
+  projected_(true),
+  projected_index_in_parent_(-1) {
 }
 
-string Schema::Element::ToString(const string& prefix) const {
+string Schema::Element::ToString(const string& prefix, bool projected_only) const {
+  if (projected_only && !projected_) return "";
+
   stringstream ss;
   ss << prefix;
   if (num_children() == 0) {
@@ -48,7 +55,7 @@ string Schema::Element::ToString(const string& prefix) const {
          << " {" << endl;
     }
     for (int i = 0; i < num_children(); ++i) {
-      ss << children_[i]->ToString(prefix + "  ");
+      ss << children_[i]->ToString(prefix + "  ", projected_only);
     }
     ss << prefix << "};" << endl;
   }
@@ -56,44 +63,62 @@ string Schema::Element::ToString(const string& prefix) const {
 }
 
 void Schema::Element::Compile() {
-  if (parent_ != NULL) {
-    index_in_parent_ = parent_->IndexOf(name());
+  if (!is_root()) {
+    index_in_parent_ = parent_->IndexOf(name(), false);
+    if (projected_) {
+      projected_index_in_parent_ = parent_->IndexOf(name(), true);
+    }
   }
   for (int i = 0; i < children_.size(); ++i) {
     children_[i]->Compile();
   }
 
+  projected_children_.clear();
+  for (int i = 0; i < children_.size(); ++i) {
+    if (children_[i]->projected_) projected_children_.push_back(children_[i].get());
+  }
+
+  ordinal_path_.clear();
+  schema_path_.clear();
+  string_path_.clear();
+  projected_ordinal_path_.clear();
+
   const Schema::Element* current = this;
   while (!current->is_root()) {
     ordinal_path_.insert(ordinal_path_.begin(), current->index_in_parent());
     schema_path_.insert(schema_path_.begin(), current);
+    string_path_.insert(string_path_.begin(), current->name());
+    if (projected_) {
+      projected_ordinal_path_.insert(
+          projected_ordinal_path_.begin(), current->projected_index_in_parent());
+    }
     current = current->parent();
   }
-}
 
-int Schema::Element::IndexOf(const string& name) const {
-  for (int i = 0; i < children_.size(); ++i) {
-    if (children_[i]->name() == name) return i;
-  }
-  throw ParquetException("Invalid child.");
-}
-
-string Schema::Element::ComputeFullName() const {
   stringstream ss;
-  vector<string> paths;
-  const Element* n = this;
-  while (n->parent_ != NULL) {
-    paths.push_back(n->parquet_schema().name);
-    n = n->parent();
-  }
-  for (int i = paths.size() - 1; i >= 0; --i) {
-    if (i == paths.size() - 1) {
-      ss << paths[i];
+  for (int i = 0; i < string_path_.size(); ++i) {
+    if (i == 0) {
+      ss << string_path_[i];
     } else {
-      ss << "." << paths[i];
+      ss << "." << string_path_[i];
     }
   }
-  return ss.str();
+  full_name_ = ss.str();
+}
+
+void Schema::Element::ClearProjection() {
+  projected_ = false;
+  for (int i = 0; i < children_.size(); ++i) children_[i]->ClearProjection();
+}
+
+int Schema::Element::IndexOf(const string& name, bool projected_only) const {
+  int idx = 0;
+  for (int i = 0; i < children_.size(); ++i) {
+    if (projected_only && !children_[i]->projected_) continue;
+    if (children_[i]->name() == name) return idx;
+    ++idx;
+  }
+  throw ParquetException("Invalid child.");
 }
 
 void Schema::Parse(const vector<SchemaElement>& nodes, Element* parent, int* idx) {
@@ -107,6 +132,27 @@ void Schema::Parse(const vector<SchemaElement>& nodes, Element* parent, int* idx
   if (nodes[cur_idx].num_children == 0) {
     max_def_level_ = std::max(max_def_level_, parent->max_def_level());
     leaves_.push_back(parent);
+    projected_leaves_.push_back(parent);
+  }
+}
+
+void Schema::SetProjection(Projection* projection) {
+  root_->ClearProjection();
+  for (int i = 0; i < projection->cols_by_name_.size(); ++i) {
+    Schema::Element* node = root_.get();
+    node->projected_ = true;
+    const vector<string>& path = projection->cols_by_name_[i];
+    for (int j = 0; j < path.size(); ++j) {
+      int idx = node->IndexOf(path[j], false);
+      node = node->children_[idx].get();
+      node->projected_ = true;
+    }
+  }
+  root_->Compile();
+
+  projected_leaves_.clear();
+  for (int i = 0; i < leaves_.size(); ++i) {
+    if (leaves_[i]->projected_) projected_leaves_.push_back(leaves_[i]);
   }
 }
 

@@ -233,6 +233,7 @@ class RecordReader {
  private:
   struct ColumnState {
     ColumnReader* reader;
+    const Schema::Element* schema;
     boost::shared_ptr<GenericDatum> datum;
     int rep_level;
     int def_level;

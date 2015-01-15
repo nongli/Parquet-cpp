@@ -40,7 +40,18 @@ void ReadParquet(char* filename, vector<int> columns) {
     for (int i = 0; i < schema->leaves().size(); ++i) {
       columns.push_back(i);
     }
+  } else {
+    vector<vector<string> > projected_paths;
+    for (int i = 0; i < columns.size(); ++i) {
+      projected_paths.push_back(schema->leaves()[columns[i]]->string_path());
+    }
+    Projection projection(projected_paths);
+    // TODO: wrong object lifetime.
+    schema->SetProjection(&projection);
   }
+
+  printf("File schema:\n%s\n", schema->ToString().c_str());
+  printf("Projected schema:\n%s\n", schema->ToString(true).c_str());
 
   for (int i = 0; i < metadata.row_groups.size(); ++i) {
     const RowGroup& row_group = metadata.row_groups[i];

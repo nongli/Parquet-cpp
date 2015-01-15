@@ -55,14 +55,13 @@ string GenericStruct::ToString(const Schema::Element* schema,
     } else {
       ss << prefix << schema->name() << " {" << endl;
     }
-    for (int i = 0; i < schema->num_children(); ++i) {
-      // TODO: not right. Handle projection.
-      int idx = schema->child(i)->index_in_parent();
-      if (idx >= fields_.size()) continue;
+    for (int i = 0; i < schema->num_projected_children(); ++i) {
+      const Schema::Element* child = schema->projected_child(i);
+      int idx = child->projected_index_in_parent();
       if (fields_[idx] == NULL) {
-        ss << prefix << "  " << schema->child(i)->name() << ": NULL" << endl;
+        ss << prefix << "  " << child->name() << ": NULL" << endl;
       } else {
-        ss << fields_[idx]->ToString(schema->child(i), prefix + "  ") << endl;
+        ss << fields_[idx]->ToString(child, prefix + "  ") << endl;
       }
     }
     ss << prefix << "};";
@@ -96,6 +95,7 @@ RecordReader::RecordReader(
   for (int i = 0; i < projected_columns.size(); ++i) {
     readers_[i].reader =
         new ColumnReader(col_metadata[i], projected_columns[i], streams[i]);
+    readers_[i].schema = schema_->projected_leaves()[i];
   }
   // TODO: verify schema, handle schema resolution.
 
@@ -163,10 +163,9 @@ vector<shared_ptr<GenericStruct> > RecordReader::GetNext() {
     shared_ptr<GenericStruct> record = GenericStruct::Create();
 
     // Loop through each projected column and assemble the record.
-    // TODO: use def/rep level
     for (int c = 0; c < readers_.size(); ++c) {
-      Schema::Element* schema = schema_->leaves()[c];
-      const vector<int>& path = schema->ordinal_path();
+      const Schema::Element* schema = readers_[c].schema;
+      const vector<int>& path = schema->projected_ordinal_path();
 
       // Put the current value in readers_[c] into the record. Keep reading
       // from readers_[c] until we hit rep_level = 0.
