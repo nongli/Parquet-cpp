@@ -17,6 +17,7 @@
 #define IMPALA_BIT_UTIL_H
 
 #include <endian.h>
+#include <boost/cstdint.hpp>
 
 #include "impala/compiler-util.h"
 #include "impala/logging.h"

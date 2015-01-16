@@ -15,3 +15,9 @@ if [ ! -d snappy-${SNAPPY_VERSION} ]; then
   rm snappy-${SNAPPY_VERSION}.tar.gz
 fi
 
+if [ ! -d gtest-${GTEST_VERSION} ]; then
+  echo "Fetching gtest"
+  curl -OC - https://googletest.googlecode.com/files/gtest-${GTEST_VERSION}.zip
+  unzip gtest-${GTEST_VERSION}.zip
+  rm gtest-${GTEST_VERSION}.zip
+fi

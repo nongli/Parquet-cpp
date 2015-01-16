@@ -1,11 +1,13 @@
 bin
 build
 generated
+test_bin
 
 CMakeCache.txt
 CMakeFiles
 CTestMakefile.cmake
 CTestTestfile.cmake
+Testing
 cmake_install.cmake
 Makefile
 

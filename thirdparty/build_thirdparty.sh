@@ -15,6 +15,7 @@ else
   # Allow passing specific libs to build on the command line
   for arg in "$*"; do
     case $arg in
+      "gtest")      F_GTEST=1 ;;
       "lz4")        F_LZ4=1 ;;
       "snappy")     F_SNAPPY=1 ;;
       *)            echo "Unknown module: $arg"; exit 1 ;;
@@ -45,17 +46,27 @@ ln -sf lib "$PREFIX/lib64"
 # use the compiled tools
 export PATH=$PREFIX/bin:$PATH
 
-# build snappy
-if [ -n "$F_ALL" -o -n "$F_SNAPPY" ]; then
-  cd $SNAPPY_DIR
-  ./configure --with-pic --prefix=$PREFIX
-  make -j$PARALLEL install
+# build gtest
+if [ -n "$F_ALL" -o -n "$F_GTEST" ]; then
+  cd $GTEST_DIR
+  echo "Building gtest"
+  CXXFLAGS=-fPIC cmake .
+  make -j$PARALLEL
 fi
 
 # build lz4
 if [ -n "$F_ALL" -o -n "$F_LZ4" ]; then
   cd $LZ4_DIR
+  echo "Building lz4"
   CFLAGS=-fPIC cmake -DCMAKE_INSTALL_PREFIX:PATH=$PREFIX $LZ4_DIR
+  make -j$PARALLEL install
+fi
+
+# build snappy
+if [ -n "$F_ALL" -o -n "$F_SNAPPY" ]; then
+  cd $SNAPPY_DIR
+  echo "Building snappy"
+  ./configure --with-pic --prefix=$PREFIX
   make -j$PARALLEL install
 fi
 

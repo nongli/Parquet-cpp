@@ -46,17 +46,24 @@ message(STATUS "Thrift compiler: ${THRIFT_COMPILER}")
 add_library(thriftstatic STATIC IMPORTED)
 set_target_properties(thriftstatic PROPERTIES IMPORTED_LOCATION ${THRIFT_STATIC_LIB})
 
-## Snappy
-find_package(Snappy REQUIRED)
-include_directories(SYSTEM ${SNAPPY_INCLUDE_DIR})
-add_library(snappystatic STATIC IMPORTED)
-set_target_properties(snappystatic PROPERTIES IMPORTED_LOCATION ${SNAPPY_STATIC_LIB})
+## GTest
+find_package(GTest REQUIRED)
+include_directories(SYSTEM ${GTEST_INCLUDE_DIR})
+add_library(gtest STATIC IMPORTED)
+set_target_properties(gtest PROPERTIES IMPORTED_LOCATION ${GTEST_LIBRARY})
 
 ## LZ4
 find_package(Lz4 REQUIRED)
 include_directories(SYSTEM ${LZ4_INCLUDE_DIR})
 add_library(lz4static STATIC IMPORTED)
 set_target_properties(lz4static PROPERTIES IMPORTED_LOCATION ${LZ4_STATIC_LIB})
+
+## Snappy
+find_package(Snappy REQUIRED)
+include_directories(SYSTEM ${SNAPPY_INCLUDE_DIR})
+add_library(snappystatic STATIC IMPORTED)
+set_target_properties(snappystatic PROPERTIES IMPORTED_LOCATION ${SNAPPY_STATIC_LIB})
+
 
 SET(CMAKE_CXX_FLAGS "-msse4.2 -Wall -Wno-unused-value -Wno-unused-variable -Wno-sign-compare -Wno-unknown-pragmas")
 SET(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -g -ggdb")
@@ -74,6 +81,20 @@ set(EXECUTABLE_OUTPUT_PATH "${CMAKE_CURRENT_SOURCE_DIR}/bin")
 include_directories(${CMAKE_CURRENT_SOURCE_DIR}/src)
 include_directories(${CMAKE_CURRENT_SOURCE_DIR}/generated)
 
+set(PARQUET_LIBS
+  Parquet
+  ParquetCompression)
+
+set (PARQUET_EXTERNAL_LIBS
+  rt
+  ThriftParquet
+  thriftstatic
+  lz4static
+  snappystatic)
+
 add_subdirectory(generated/gen-cpp)
 add_subdirectory(src)
 add_subdirectory(example)
+
+set(EXECUTABLE_OUTPUT_PATH "${CMAKE_CURRENT_SOURCE_DIR}/test_bin")
+add_subdirectory(tests)

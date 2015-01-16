@@ -12,24 +12,18 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-
-add_library(Example STATIC
-  example_util.cc
-)
-
 SET(LINK_LIBS
   ${PARQUET_LIBS}
-  Example
-  ${PARQUET_EXTERNAL_LIBS})
+  ${PARQUET_EXTERNAL_LIBS}
+  gtest)
 
-FUNCTION(ADD_EXAMPLE EXAMPLE_NAME)
-  ADD_EXECUTABLE(${EXAMPLE_NAME} ${EXAMPLE_NAME}.cc)
-  TARGET_LINK_LIBRARIES(${EXAMPLE_NAME} ${LINK_LIBS})
+FUNCTION(ADD_UNIT_TEST TEST_NAME)
+  ADD_EXECUTABLE(${TEST_NAME} ${TEST_NAME}.cc)
+  TARGET_LINK_LIBRARIES(${TEST_NAME} ${LINK_LIBS})
+  ADD_TEST(${TEST_NAME} "../test_bin/${TEST_NAME}")
 ENDFUNCTION()
 
-ADD_EXAMPLE(compute-stats)
-ADD_EXAMPLE(decode-benchmark)
-ADD_EXAMPLE(parquet-reader)
-ADD_EXAMPLE(generic-record-test)
-ADD_EXAMPLE(parquet-record-reader)
-ADD_EXAMPLE(dump-metadata)
+SET(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -pthread")
+
+ADD_UNIT_TEST(bit-util-test)
+ADD_UNIT_TEST(rle-test)
